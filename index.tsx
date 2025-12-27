@@ -52,9 +52,7 @@ import {
   Briefcase,
   Users,
   Award,
-  Terminal,
-  Settings,
-  HelpCircle
+  Terminal
 } from 'lucide-react';
 
 // --- Types ---
@@ -283,7 +281,7 @@ const ObservationGuide = () => (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       {[
         { icon: <Sun className="w-5 h-5 text-yellow-400" />, title: '明亮環境', desc: '在自然光下拍攝最為準確，避免閃光燈造成的反光' },
-        { icon: <Smartphone className="w-5 h-5 text-blue-400" />, title: '對焦清晰', desc: '確保掌紋（特別是細小紋路）清晰不模糊' },
+        { icon: <Smartphone className="w-5 h-5 text-blue-400" />, title: '對焦清晰', desc: '確保掌紋清晰不模糊' },
         { icon: <MousePointer2 className="w-5 h-5 text-green-400" />, title: '手掌平放', desc: '五指自然微張，手掌完全平整對準鏡頭' }
       ].map((item, i) => (
         <div key={i} className="glass p-5 rounded-2xl border-white/5 flex flex-col items-center text-center hover:border-white/20 transition-all">
@@ -303,7 +301,6 @@ const App = () => {
   const [result, setResult] = useState<PalmAnalysis | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showKeyGuide, setShowKeyGuide] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [viewingHistory, setViewingHistory] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -321,12 +318,6 @@ const App = () => {
   useEffect(() => {
     const saved = localStorage.getItem('palm_history');
     if (saved) try { setHistory(JSON.parse(saved)); } catch (e) { console.error(e); }
-    
-    // 初始檢測 API KEY
-    if (!process.env.API_KEY || process.env.API_KEY === '') {
-      setError("系統檢測到 API_KEY 缺失。如果您是部署在 Vercel，請在專案設定中加入環境變數。");
-      setShowKeyGuide(true);
-    }
   }, []);
 
   useEffect(() => {
@@ -351,20 +342,13 @@ const App = () => {
 
   const analyzePalm = async () => {
     if (!image) return;
-    
-    if (!process.env.API_KEY || process.env.API_KEY === '') {
-      setError("API_KEY 缺失，無法啟動 AI 解析。請查看下方的設定引導。");
-      setShowKeyGuide(true);
-      return;
-    }
 
     setAnalyzing(true); 
     setResult(null); 
     setError(null);
-    setShowKeyGuide(false);
     
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
       const base64Data = image.split(',')[1];
       
       const response = await ai.models.generateContent({
@@ -415,7 +399,7 @@ const App = () => {
       setResult(parsed);
     } catch (err: any) { 
       console.error("Analysis Error:", err);
-      setError(`分析失敗：${err.message || '連線逾時'}。請檢查您的 API Key 是否有效。`); 
+      setError(`系統目前繁忙或設定有誤：${err.message || '連線逾時'}。請稍後再試。`); 
     } finally { 
       setAnalyzing(false); 
     }
@@ -467,7 +451,7 @@ const App = () => {
       
       <div className="w-full py-2 disclaimer-banner text-[10px] text-center text-red-200 font-bold sticky top-0 z-50 backdrop-blur-md no-print border-b border-red-500/10">
         <ShieldAlert size={12} className="inline mr-2 text-red-400" />
-        <span>理性觀測：本分析僅供性格參考與自我察覺，絕非命定論。</span>
+        <span>理性觀測：本分析僅供性格參考與自我察覺。</span>
       </div>
 
       <header className="pt-8 pb-4 text-center px-4 no-print">
@@ -487,27 +471,9 @@ const App = () => {
               <AlertCircle className="w-5 h-5 mt-0.5 text-red-400 flex-shrink-0" />
               <div>
                 <p className="text-[11px] leading-relaxed font-bold mb-3">{error}</p>
-                
-                {showKeyGuide && (
-                  <div className="bg-black/40 p-4 rounded-xl border border-white/5 space-y-3 mb-2">
-                    <h4 className="text-[10px] text-accent font-bold uppercase tracking-widest flex items-center">
-                      <Settings className="w-3 h-3 mr-1.5" /> Vercel 設定教學
-                    </h4>
-                    <ol className="text-[9px] text-gray-400 list-decimal pl-4 space-y-1.5">
-                      <li>前往您的 <span className="text-white">Vercel Dashboard</span>。</li>
-                      <li>進入 <span className="text-white font-bold">Settings &gt; Environment Variables</span>。</li>
-                      <li>新增 Key 為 <code className="bg-white/10 px-1 rounded text-primary">API_KEY</code>，Value 為您的 Gemini 金鑰。</li>
-                      <li>點擊 <span className="font-bold text-white">Add</span> 後，前往 <span className="font-bold text-white">Deployments</span> 重新執行一次 <span className="text-white font-bold">Redeploy</span>。</li>
-                    </ol>
-                  </div>
-                )}
-                
-                <div className="flex space-x-4 mt-2">
+                <div className="flex space-x-4">
                   <button onClick={() => { setError(null); if (!image) setIsProfileEntered(false); }} className="text-[10px] font-bold uppercase tracking-widest text-accent hover:underline flex items-center">
-                    <RotateCcw className="w-3 h-3 mr-1" /> 關閉提示
-                  </button>
-                  <button onClick={() => window.location.reload()} className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-white flex items-center">
-                    <RefreshCw className="w-3 h-3 mr-1" /> 重新整理網頁
+                    <RotateCcw className="w-3 h-3 mr-1" /> 重試操作
                   </button>
                 </div>
               </div>
@@ -543,7 +509,7 @@ const App = () => {
                 </div>
 
                 <div className="disclaimer-box group">
-                  <p className="text-[10px] italic leading-relaxed text-gray-400">本系統運用 AI 進行性格統計分析。其結果應視為認識自我的工具，而非宿命預測。請保持開放與理性的心態。</p>
+                  <p className="text-[10px] italic leading-relaxed text-gray-400">本系統運用 AI 進行性格統計分析。其結果應視為認識自我的工具。請保持開放與理性的心態。</p>
                   <div className={`flex items-center mt-4 cursor-pointer p-3 rounded-xl transition-all ${disclaimerAccepted ? 'bg-primary/10' : 'hover:bg-white/5'}`} onClick={() => setDisclaimerAccepted(!disclaimerAccepted)}>
                     <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-all ${disclaimerAccepted ? 'bg-primary border-primary' : 'border-white/20'}`}>
                       {disclaimerAccepted && <X size={12} strokeWidth={3} />}
@@ -579,7 +545,7 @@ const App = () => {
               }} className="glass p-12 rounded-[2.5rem] flex flex-col items-center group hover:border-primary/40 transition-all">
                 <Camera className="text-primary w-12 h-12 mb-4 group-hover:scale-110 transition-transform" />
                 <h3 className="text-lg font-bold font-mystic text-white">啟動實時掃描</h3>
-                <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest text-center">使用後置鏡頭以確保最佳細節與焦距</p>
+                <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest text-center">使用後置鏡頭以確保最佳細節</p>
               </button>
               <button onClick={() => fileInputRef.current?.click()} className="w-full glass p-8 rounded-[2rem] flex flex-col items-center hover:border-secondary/40 transition-all">
                 <Upload className="text-secondary w-6 h-6 mb-2" />
@@ -630,15 +596,6 @@ const App = () => {
             >
               <Zap className="mr-2 w-6 h-6 fill-white" /> 開始深度解析
             </button>
-            
-            {showKeyGuide && (
-              <div className="p-4 rounded-2xl bg-accent/5 border border-accent/20 flex items-start space-x-3">
-                <HelpCircle className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
-                <p className="text-[10px] text-gray-400 leading-relaxed italic">
-                  提醒：若您在 Vercel 剛設定完 API KEY，請確保已執行 <span className="text-white font-bold">Redeploy</span>。系統才能讀取到新的變數設定。
-                </p>
-              </div>
-            )}
           </div>
         )}
 
@@ -706,7 +663,7 @@ const App = () => {
       </main>
 
       <footer className="mt-20 text-center flex flex-col items-center pb-12 opacity-30 px-6 no-print">
-        <p className="text-[9px] text-gray-500 max-w-xs leading-loose mb-6">拒絕迷信，掌握未來。手相隨心而變，AI 分析僅供大數據統計參考。</p>
+        <p className="text-[9px] text-gray-500 max-w-xs leading-loose mb-6">手相隨心而變，AI 分析僅供大數據統計參考。人生由您的選擇決定。</p>
         <div className="font-mystic tracking-[0.6em] text-[8px] uppercase">AI Palmistry Analyst &bull; v3.0 Powered by Gemini</div>
       </footer>
       <canvas ref={canvasRef} className="hidden" />
