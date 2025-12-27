@@ -278,7 +278,7 @@ const NebulaBackground = () => (
 const ObservationGuide = () => (
   <div className="space-y-6 mb-10 no-print">
     <h3 className="text-xs font-bold text-accent uppercase tracking-[0.3em] flex items-center">
-      <Info className="w-4 h-4 mr-2" /> 高品質觀測指南
+      <Info className="w-4 h-4 mr-2" /> 高高品質觀測指南
     </h3>
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       {[
@@ -495,9 +495,9 @@ const App = () => {
                     </h4>
                     <ol className="text-[9px] text-gray-400 list-decimal pl-4 space-y-1.5">
                       <li>前往您的 <span className="text-white">Vercel Dashboard</span>。</li>
-                      <li>進入 <span className="text-white">Settings > Environment Variables</span>。</li>
+                      <li>進入 <span className="text-white font-bold">Settings &gt; Environment Variables</span>。</li>
                       <li>新增 Key 為 <code className="bg-white/10 px-1 rounded text-primary">API_KEY</code>，Value 為您的 Gemini 金鑰。</li>
-                      <li>點擊 **Add** 後，前往 **Deployments** 重新執行一次 <span className="text-white">Redeploy</span>。</li>
+                      <li>點擊 <span className="font-bold text-white">Add</span> 後，前往 <span className="font-bold text-white">Deployments</span> 重新執行一次 <span className="text-white font-bold">Redeploy</span>。</li>
                     </ol>
                   </div>
                 )}
@@ -654,10 +654,9 @@ const App = () => {
           </div>
         )}
 
-        {/* --- 分析結果報告 (保持不變) --- */}
+        {/* --- 分析結果報告 --- */}
         {result && (
           <div id="printable-report" className="space-y-12 animate-in fade-in slide-in-from-bottom-10 duration-1000">
-            {/* ... 結果渲染內容 ... */}
             <div className="text-center space-y-4">
               <div className="ai-badge border-accent/20 text-accent"><Star size={10} className="fill-accent" /><span>{result.archetype.name}</span></div>
               <p className="text-3xl text-white font-mystic tracking-wider italic leading-relaxed px-4">「{result.overall}」</p>
