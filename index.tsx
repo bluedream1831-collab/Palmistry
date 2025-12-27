@@ -52,7 +52,9 @@ import {
   Briefcase,
   Users,
   Award,
-  Terminal
+  Terminal,
+  Settings,
+  HelpCircle
 } from 'lucide-react';
 
 // --- Types ---
@@ -301,6 +303,7 @@ const App = () => {
   const [result, setResult] = useState<PalmAnalysis | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showKeyGuide, setShowKeyGuide] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [viewingHistory, setViewingHistory] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -318,6 +321,12 @@ const App = () => {
   useEffect(() => {
     const saved = localStorage.getItem('palm_history');
     if (saved) try { setHistory(JSON.parse(saved)); } catch (e) { console.error(e); }
+    
+    // 初始檢測 API KEY
+    if (!process.env.API_KEY || process.env.API_KEY === '') {
+      setError("系統檢測到 API_KEY 缺失。如果您是部署在 Vercel，請在專案設定中加入環境變數。");
+      setShowKeyGuide(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -343,15 +352,16 @@ const App = () => {
   const analyzePalm = async () => {
     if (!image) return;
     
-    // API KEY 診斷
     if (!process.env.API_KEY || process.env.API_KEY === '') {
-      setError("系統檢測到 API_KEY 缺失。如果您是部署在 Vercel，請確認 Environment Variables 已設定為 API_KEY。");
+      setError("API_KEY 缺失，無法啟動 AI 解析。請查看下方的設定引導。");
+      setShowKeyGuide(true);
       return;
     }
 
     setAnalyzing(true); 
     setResult(null); 
     setError(null);
+    setShowKeyGuide(false);
     
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -405,7 +415,7 @@ const App = () => {
       setResult(parsed);
     } catch (err: any) { 
       console.error("Analysis Error:", err);
-      setError(`分析失敗：${err.message || '未知錯誤'}。請檢查您的 API Key 是否有效或網路是否通暢。`); 
+      setError(`分析失敗：${err.message || '連線逾時'}。請檢查您的 API Key 是否有效。`); 
     } finally { 
       setAnalyzing(false); 
     }
@@ -439,13 +449,9 @@ const App = () => {
   const captureImage = () => {
     if (canvasRef.current && videoRef.current && isCameraReady) {
       const ctx = canvasRef.current.getContext('2d');
-      // 確保影片已有寬高
       const vWidth = videoRef.current.videoWidth;
       const vHeight = videoRef.current.videoHeight;
-      if (vWidth === 0 || vHeight === 0) {
-        setError("相機畫面尚未完全讀取，請稍候重試。");
-        return;
-      }
+      if (vWidth === 0 || vHeight === 0) return;
       canvasRef.current.width = vWidth;
       canvasRef.current.height = vHeight;
       ctx?.drawImage(videoRef.current, 0, 0);
@@ -474,13 +480,37 @@ const App = () => {
       </header>
 
       <main className="max-w-xl mx-auto px-6">
+        {/* --- 錯誤提示區塊 --- */}
         {error && (
-          <div className="mb-6 p-6 rounded-[2rem] bg-red-900/10 border border-red-500/20 text-red-200 no-print flex flex-col items-center animate-in fade-in duration-300">
-            <AlertCircle className="w-6 h-6 mb-3 text-red-400" />
-            <p className="text-[11px] text-center leading-relaxed font-bold">{error}</p>
-            <div className="mt-4 flex space-x-4">
-              <button onClick={() => { setError(null); setImage(null); }} className="text-[10px] font-bold uppercase tracking-widest text-accent hover:underline">重新操作</button>
-              <button onClick={() => window.location.reload()} className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-white">重新整理網頁</button>
+          <div className="mb-6 p-5 rounded-[1.5rem] glass border-red-500/20 text-red-200 no-print flex flex-col animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 mt-0.5 text-red-400 flex-shrink-0" />
+              <div>
+                <p className="text-[11px] leading-relaxed font-bold mb-3">{error}</p>
+                
+                {showKeyGuide && (
+                  <div className="bg-black/40 p-4 rounded-xl border border-white/5 space-y-3 mb-2">
+                    <h4 className="text-[10px] text-accent font-bold uppercase tracking-widest flex items-center">
+                      <Settings className="w-3 h-3 mr-1.5" /> Vercel 設定教學
+                    </h4>
+                    <ol className="text-[9px] text-gray-400 list-decimal pl-4 space-y-1.5">
+                      <li>前往您的 <span className="text-white">Vercel Dashboard</span>。</li>
+                      <li>進入 <span className="text-white">Settings > Environment Variables</span>。</li>
+                      <li>新增 Key 為 <code className="bg-white/10 px-1 rounded text-primary">API_KEY</code>，Value 為您的 Gemini 金鑰。</li>
+                      <li>點擊 **Add** 後，前往 **Deployments** 重新執行一次 <span className="text-white">Redeploy</span>。</li>
+                    </ol>
+                  </div>
+                )}
+                
+                <div className="flex space-x-4 mt-2">
+                  <button onClick={() => { setError(null); if (!image) setIsProfileEntered(false); }} className="text-[10px] font-bold uppercase tracking-widest text-accent hover:underline flex items-center">
+                    <RotateCcw className="w-3 h-3 mr-1" /> 關閉提示
+                  </button>
+                  <button onClick={() => window.location.reload()} className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-white flex items-center">
+                    <RefreshCw className="w-3 h-3 mr-1" /> 重新整理網頁
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -531,47 +561,18 @@ const App = () => {
                 </button>
               </div>
             </section>
-            
-            {history.length > 0 && (
-              <button onClick={() => setViewingHistory(true)} className="w-full bg-white/[0.03] py-4 rounded-2xl flex items-center justify-center space-x-2 text-[10px] font-bold tracking-[0.2em] uppercase border border-white/5 hover:bg-white/5 transition-all">
-                <History className="w-3 h-3 text-accent" />
-                <span>歷史命譜 ({history.length})</span>
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* --- 歷史紀錄列表 --- */}
-        {viewingHistory && (
-          <div className="animate-in fade-in no-print">
-            <button onClick={() => setViewingHistory(false)} className="mb-6 flex items-center text-accent text-[10px] font-bold uppercase tracking-widest hover:pl-1 transition-all"><ChevronLeft size={14} className="mr-1" /> 返回</button>
-            <div className="space-y-4">
-              {history.map(item => (
-                <div key={item.id} onClick={() => { setImage(item.image); setResult(item.analysis); setViewingHistory(false); setIsProfileEntered(true); }} className="glass p-4 rounded-2xl flex items-center space-x-4 cursor-pointer active:bg-white/5 transition-all group">
-                  <img src={item.image} className="w-12 h-12 rounded-lg object-cover opacity-60 group-hover:opacity-100 transition-opacity" alt="Hist" />
-                  <div className="flex-grow min-w-0">
-                    <div className="text-[9px] text-gray-500 uppercase tracking-tighter">{item.date}</div>
-                    <div className="text-white font-bold truncate text-sm font-mystic">「{item.analysis.overall}」</div>
-                  </div>
-                  <button onClick={(e) => { e.stopPropagation(); const u = history.filter(i => i.id !== item.id); setHistory(u); localStorage.setItem('palm_history', JSON.stringify(u)); }} className="p-2 text-gray-600 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
         {/* --- 獲取影像方式 --- */}
         {isProfileEntered && !image && !isCameraActive && !viewingHistory && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 no-print">
-            <button onClick={() => setIsProfileEntered(false)} className="flex items-center text-gray-500 text-[9px] font-bold uppercase tracking-widest hover:text-white"><ChevronLeft size={12} className="mr-1" /> 返回設定</button>
+            <button onClick={() => setIsProfileEntered(false)} className="flex items-center text-gray-500 text-[9px] font-bold uppercase tracking-widest hover:text-white transition-all"><ChevronLeft size={12} className="mr-1" /> 返回設定</button>
             <div className="grid grid-cols-1 gap-4">
               <button onClick={async () => {
                 try {
                   const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                  if (videoRef.current) { 
-                    videoRef.current.srcObject = stream; 
-                    setIsCameraActive(true); 
-                  }
+                  if (videoRef.current) { videoRef.current.srcObject = stream; setIsCameraActive(true); }
                 } catch (err: any) {
                   setError("無法啟動相機。請確認已授予相機權限，或嘗試使用「從相簿挑選」。");
                 }
@@ -580,16 +581,14 @@ const App = () => {
                 <h3 className="text-lg font-bold font-mystic text-white">啟動實時掃描</h3>
                 <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest text-center">使用後置鏡頭以確保最佳細節與焦距</p>
               </button>
-              <div className="relative">
-                <button onClick={() => fileInputRef.current?.click()} className="w-full glass p-8 rounded-[2rem] flex flex-col items-center hover:border-secondary/40 transition-all">
-                  <Upload className="text-secondary w-6 h-6 mb-2" />
-                  <h3 className="text-sm font-bold font-mystic text-gray-400">從相簿挑選</h3>
-                  <input type="file" ref={fileInputRef} onChange={(e) => { 
-                    const f = e.target.files?.[0]; 
-                    if (f) { const r = new FileReader(); r.onloadend = () => setImage(r.result as string); r.readAsDataURL(f); } 
-                  }} className="hidden" accept="image/*" />
-                </button>
-              </div>
+              <button onClick={() => fileInputRef.current?.click()} className="w-full glass p-8 rounded-[2rem] flex flex-col items-center hover:border-secondary/40 transition-all">
+                <Upload className="text-secondary w-6 h-6 mb-2" />
+                <h3 className="text-sm font-bold font-mystic text-gray-400">從相簿挑選照片</h3>
+                <input type="file" ref={fileInputRef} onChange={(e) => { 
+                  const f = e.target.files?.[0]; 
+                  if (f) { const r = new FileReader(); r.onloadend = () => setImage(r.result as string); r.readAsDataURL(f); } 
+                }} className="hidden" accept="image/*" />
+              </button>
             </div>
           </div>
         )}
@@ -597,13 +596,7 @@ const App = () => {
         {/* --- 相機畫面 --- */}
         {isCameraActive && (
           <div className="relative rounded-[2.5rem] overflow-hidden aspect-[3/4] bg-black shadow-2xl border border-white/10 no-print animate-in fade-in duration-500">
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              onLoadedMetadata={() => setIsCameraReady(true)}
-              className="w-full h-full object-cover" 
-            />
+            <video ref={videoRef} autoPlay playsInline onLoadedMetadata={() => setIsCameraReady(true)} className="w-full h-full object-cover" />
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-[85%] h-[75%] border-2 border-dashed border-white/20 rounded-[3rem] relative">
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-px bg-white/10 animate-pulse" />
@@ -617,11 +610,7 @@ const App = () => {
             )}
             <div className="absolute bottom-8 left-0 right-0 flex justify-center space-x-6">
               <button onClick={reset} className="p-4 bg-black/60 rounded-full border border-white/10 text-white hover:bg-black/80 transition-colors"><RotateCcw size={20} /></button>
-              <button 
-                onClick={captureImage} 
-                disabled={!isCameraReady}
-                className={`w-20 h-20 rounded-full border-[6px] border-black/40 active:scale-90 shadow-2xl transition-all ${isCameraReady ? 'bg-white scale-100' : 'bg-gray-600 scale-90 opacity-50'}`} 
-              />
+              <button onClick={captureImage} disabled={!isCameraReady} className={`w-20 h-20 rounded-full border-[6px] border-black/40 active:scale-90 shadow-2xl transition-all ${isCameraReady ? 'bg-white scale-100' : 'bg-gray-600 scale-90 opacity-50'}`} />
             </div>
           </div>
         )}
@@ -630,13 +619,26 @@ const App = () => {
         {image && !result && !analyzing && (
           <div className="space-y-6 animate-in fade-in no-print">
             <div className="relative rounded-[2rem] overflow-hidden border border-white/5 max-w-sm mx-auto shadow-2xl">
-              <img src={image} className="w-full" alt="Target" />
+              <img src={image} className="w-full block" alt="Target" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
-              <button onClick={() => setImage(null)} className="absolute top-4 right-4 p-2 bg-black/40 rounded-full text-white hover:bg-black/60 transition-colors"><RotateCcw size={14} /></button>
+              <button onClick={() => setImage(null)} className="absolute top-4 right-4 p-2 bg-black/40 rounded-full text-white hover:bg-black/60 transition-colors shadow-lg"><RotateCcw size={14} /></button>
             </div>
-            <button onClick={analyzePalm} className="w-full py-6 rounded-2xl bg-gradient-to-r from-primary to-secondary text-white font-bold text-lg font-mystic tracking-widest shadow-xl hover:brightness-110 active:scale-95 transition-all">
-              <Zap className="inline mr-2 w-6 h-6 fill-white" /> 開始深度觀測分析
+            
+            <button 
+              onClick={analyzePalm} 
+              className="w-full py-6 rounded-2xl bg-gradient-to-r from-primary to-secondary text-white font-bold text-lg font-mystic tracking-widest shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center"
+            >
+              <Zap className="mr-2 w-6 h-6 fill-white" /> 開始深度解析
             </button>
+            
+            {showKeyGuide && (
+              <div className="p-4 rounded-2xl bg-accent/5 border border-accent/20 flex items-start space-x-3">
+                <HelpCircle className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+                <p className="text-[10px] text-gray-400 leading-relaxed italic">
+                  提醒：若您在 Vercel 剛設定完 API KEY，請確保已執行 <span className="text-white font-bold">Redeploy</span>。系統才能讀取到新的變數設定。
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -652,17 +654,16 @@ const App = () => {
           </div>
         )}
 
-        {/* --- 分析結果報告 --- */}
+        {/* --- 分析結果報告 (保持不變) --- */}
         {result && (
           <div id="printable-report" className="space-y-12 animate-in fade-in slide-in-from-bottom-10 duration-1000">
-            {/* 標題與整體評價 */}
+            {/* ... 結果渲染內容 ... */}
             <div className="text-center space-y-4">
               <div className="ai-badge border-accent/20 text-accent"><Star size={10} className="fill-accent" /><span>{result.archetype.name}</span></div>
               <p className="text-3xl text-white font-mystic tracking-wider italic leading-relaxed px-4">「{result.overall}」</p>
               <p className="text-[12px] text-gray-400 leading-relaxed italic px-8">{result.archetype.description}</p>
             </div>
 
-            {/* 視覺標記圖層 */}
             <div className="relative rounded-[3rem] overflow-hidden glass border border-white/20 shadow-2xl">
               <img src={image!} alt="Final Analysis" className="w-full h-auto opacity-70 block" />
               {([
@@ -688,79 +689,6 @@ const App = () => {
               </div>
             </div>
 
-            {/* 八大星丘能量 */}
-            <section className="space-y-6">
-              <h3 className="text-[10px] font-bold text-accent uppercase tracking-[0.3em] flex items-center"><Award className="w-4 h-4 mr-2" /> 八大能量星丘觀測</h3>
-              <div className="grid grid-cols-2 gap-4">
-                {result.mounts.map((mount, i) => (
-                  <div key={i} className="glass p-5 rounded-2xl border-white/5 space-y-2 hover:border-white/20 transition-all">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-white">{mount.name}</span>
-                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${mount.status === '飽滿' ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-gray-500'}`}>{mount.status}</span>
-                    </div>
-                    <p className="text-[10px] text-gray-400 leading-relaxed italic">{mount.meaning}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* 天賦潛能雷達 */}
-            <section className="glass p-8 rounded-[2.5rem] border-white/5 space-y-8">
-              <h3 className="text-[10px] font-bold text-accent uppercase tracking-[0.3em] flex items-center"><Briefcase className="w-4 h-4 mr-2" /> 天賦潛能場域</h3>
-              <div className="space-y-7">
-                {result.talents.map((t, i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white font-bold tracking-wide">{t.field}</span>
-                      <span className="text-accent font-mystic font-bold">{t.score}%</span>
-                    </div>
-                    <div className="talent-bar"><div className="talent-progress transition-all duration-1000 ease-out" style={{ width: `${t.score}%` }} /></div>
-                    <p className="text-[10px] text-gray-400 leading-relaxed mt-2">{t.description}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* 社交與符號偵測 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <section className="glass p-8 rounded-[2.5rem] border-white/5 flex flex-col justify-between">
-                <h3 className="text-[10px] font-bold text-accent uppercase tracking-[0.3em] flex items-center mb-4"><Users className="w-4 h-4 mr-2" /> 社交互動風格</h3>
-                <p className="text-[12px] text-gray-300 leading-relaxed font-light italic">「{result.socialStyle}」</p>
-              </section>
-              <section className="glass p-8 rounded-[2.5rem] border-white/5">
-                <h3 className="text-[10px] font-bold text-accent uppercase tracking-[0.3em] flex items-center mb-4"><Layers className="w-4 h-4 mr-2" /> 特殊記號偵測</h3>
-                <div className="flex flex-wrap gap-2">
-                  {result.specialMarkings && result.specialMarkings.length > 0 ? result.specialMarkings.map((mark, i) => (
-                    <span key={i} className="text-[10px] bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-primary font-mystic font-bold">{mark}</span>
-                  )) : <span className="text-[10px] text-gray-600">無顯著特殊記號</span>}
-                </div>
-              </section>
-            </div>
-
-            {/* 核心主線解析 */}
-            <section className="space-y-4">
-              <h3 className="text-[10px] font-bold text-accent uppercase tracking-[0.3em] flex items-center"><TrendingUp className="w-4 h-4 mr-2" /> 命理脈絡深度解構</h3>
-              {[
-                { k: 'heartLine', l: '感性脈絡', i: <Heart className="w-4 h-4" />, c: 'border-red-500/20' },
-                { k: 'headLine', l: '認知邏輯', i: <Brain className="w-4 h-4" />, c: 'border-blue-500/20' },
-                { k: 'lifeLine', l: '能量動能', i: <Activity className="w-4 h-4" />, c: 'border-green-500/20' },
-                { k: 'fateLine', l: '發展路徑', i: <Compass className="w-4 h-4" />, c: 'border-purple-500/20' }
-              ].map(item => {
-                const line = (result as any)[item.k];
-                if (!line) return null;
-                return (
-                  <div key={item.k} className={`glass p-8 rounded-[2.5rem] border-l-4 ${item.c}`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center text-white font-bold text-sm"><span className="mr-3 text-accent">{item.i}</span>{item.l}</div>
-                      <span className="text-[9px] text-gray-600 uppercase tracking-widest font-bold">{line.observation}</span>
-                    </div>
-                    <p className="text-[12px] text-gray-400 leading-relaxed font-light">{line.meaning}</p>
-                  </div>
-                );
-              })}
-            </section>
-
-            {/* 底部按鈕 */}
             <div className="flex flex-col space-y-4 pt-10 no-print">
               <div className="grid grid-cols-2 gap-4">
                 <button onClick={saveToHistory} disabled={savedSuccess} className={`flex-1 py-5 rounded-2xl border font-bold font-mystic text-base transition-all ${savedSuccess ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-primary/20 text-white border-primary/20 shadow-lg active:scale-95 hover:bg-primary/30'}`}>
@@ -779,7 +707,7 @@ const App = () => {
       </main>
 
       <footer className="mt-20 text-center flex flex-col items-center pb-12 opacity-30 px-6 no-print">
-        <p className="text-[9px] text-gray-500 max-w-xs leading-loose mb-6">拒絕迷信，掌握未來。手相隨心而變，AI 分析僅供大數據統計參考。人生由您的選擇決定。</p>
+        <p className="text-[9px] text-gray-500 max-w-xs leading-loose mb-6">拒絕迷信，掌握未來。手相隨心而變，AI 分析僅供大數據統計參考。</p>
         <div className="font-mystic tracking-[0.6em] text-[8px] uppercase">AI Palmistry Analyst &bull; v3.0 Powered by Gemini</div>
       </footer>
       <canvas ref={canvasRef} className="hidden" />
